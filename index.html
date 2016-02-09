@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<meta charset="utf-8">
+
+<style type="text/css">
+  /*css to go here*/
+  body {
+	font-family: arial;
+	font-size: 12px;
+  }
+
+  .g-chart-container {
+	width:350px;
+	margin:10px 0;
+	border:2px solid red
+  }
+
+  .g-location {
+	text-align: center;
+	font-weight: bold;
+	font-size:14px; 
+	margin: 3px 0;
+  }
+
+  .container{
+	border: 1px solid red;
+  }
+
+	.axis path,
+	.axis line {
+		fill: none;
+		stroke: black;
+		shape-rendering: crispEdges;
+}
+
+.axis text {
+	font-family: sans-serif;
+	font-size: 11px;
+}
+
+/*svg path {
+	stroke: red; 
+	stroke-width: 3;
+	fill: none;
+}*/
+
+.country-group{
+	stroke: gray;
+	stroke-width: 1;
+	fill: none;
+}
+
+.highlight{
+	stroke: blue;
+	stroke-width: 3;
+	fill: none;
+}
+
+</style>
+<body>
+
+</body>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/d3/3.5.5/d3.min.js" charset="utf-8"></script>
+
+<script>
+
+var highlightCountry = "United States";
+
+var compareCountries = ["United Kingdom", "Norway", "Germany", "Canada", "Netherlands", "France", "Sweden", "Ireland", "Spain"]
+
+var margin = {top: 0, right: 100, bottom: 20, left: 100};
+
+var width = 920 - margin.left - margin.right,
+	height = 400 - margin.top - margin.bottom;
+
+var svg = d3.select("body").append("svg")
+	  .attr("width", width + margin.left + margin.right)
+	  .attr("height", height + margin.top + margin.bottom)
+	.attr("class", "container")
+  //  .attr("border", 1px solid red)
+	.append("g")
+	  .attr("transform", "translate(" + margin.left + "," + margin.top + ")");
+
+var yScale = d3.scale.linear()
+		//domain inside callback below
+	.range([height, 0]);		
+
+var x0 = d3.scale.ordinal()
+	.domain(compareCountries)
+			//2nd argument is px value, and third param is 0-1 how much buffer is maximizing
+	.rangeBands([0, width], .02);
+		
+var x1 = d3.scale.ordinal()
+			//2nd argument is px value, and third param is 0-1 how much buffer is maximizing
+	.range([0,x0.rangeBand()])
+	//.rangeBands([0, width], .01);
+
+var xAxis = d3.svg.axis()
+		.scale(x0)
+		//.tickSize(-height)
+		//.tickValues([1931,1932])
+		//.tickFormat(d3.round)
+		.orient("bottom");
+
+var yAxis = d3.svg.axis()
+		.scale(yScale)
+		.orient("right");
+		//domain inside callback below
+
+//this axis is to go inside of each
+var xAxis2 = d3.svg.axis()
+		.scale(x1)
+		//.tickSize(-height)
+		//.tickValues([1931,1932])
+		//.tickFormat(d3.round)
+		.orient("bottom");
+
+
+
+
+d3.csv("incomes.csv", ready);
+
+function ready(err, data) {
+	if (err) throw "error loading data";
+
+	data.forEach(function(d) {
+		d.year = +d.year;
+		d.val = +d.val;
+	});
+
+
+
+	yScale.domain(d3.extent(data, function(d) { return d.val }));	
+
+	
+	x1.domain(d3.map(data, function(d) { return d.year }));
+
+
+	var byMedian = data.filter(function(d) {
+		return d.cutoff=="cop50";	
+		//return d
+	});
+
+   
+
+	byCountry= d3.nest()
+		.key(function(d) { return d.country })
+	//	.key(function(d) {return d.cutoff == "cop50"; })
+		//can nest here with another key!!
+		.entries(byMedian);
+
+	otherCountry = byCountry.filter(function(d){
+		return compareCountries.includes(d.key)
+	});
+
+	var highlight = byCountry.filter(function(d){
+		return d.key === highlightCountry
+	});
+
+ 
+//	x0.domain(d3.set(otherCountry.map(function(d) { return d.key; })).values());
+
+   // xScale.domain(d3.map(otherCountry, function(d) { return d.key }));
+
+//	var maxYield = d3.max(data, function(d) { return d.yield; });
+	
+	makeLine = d3.svg.line()
+		.x(function(d) { return x1(d.year); })
+		//.x(function(d) { return xScale(d.year); })
+		.y(function(d) { return yScale(d.val); });
+
+//d3.map([otherCountry]["Canada"], function(d) {return d.values;})
+
+	svg.append("g")
+	  .attr("transform", "translate(0," + height + ")")
+	  .attr("class", "x axis")
+	  .call(xAxis);
+
+//	svg.append("g")
+//	  .attr("transform", "translate(" + width + ", 0)")
+//	  .attr("class", "y axis")
+//	  .call(yAxis);
+
+	var countryGroup = svg.selectAll(".country-group")
+		.data(otherCountry)
+		.enter()
+		//	.filter(function(d) {return d.country != highlightCountry;})
+		.append("g")
+		.attr("class", "country-group");
+
+	countryGroup.append("g")
+		//.attr("transform", "translate(0," + height + ")")
+	  	.attr("class", "x axis")
+	  	.call(xAxis2);
+
+	countryGroup.append("g")
+	  .attr("transform", "translate(" + width + ", 0)")
+	  .attr("class", "y axis")
+	  .call(yAxis);
+//
+//	var thisHighlight = svg.selectAll(".highlight")
+	//	.data(highlight)
+	//	.enter()
+	//	.append("g")
+	//	.attr("class","highlight");
+
+//for each country group, draw a path with the values which are nested
+	countryGroup.append("path")
+		.attr("d", function(d) { return makeLine(d.values); });	
+		//
+
+//	thisHighlight.append("path")
+//		.attr("d", function(d) {return line(d.values); });
+		
+
+	//"line " here is a function that generates lines, try line(byCountry)
+
+
+}
+
+</script>
